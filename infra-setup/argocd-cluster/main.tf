@@ -17,6 +17,15 @@ resource "null_resource" "set_kubeconfig" {
   depends_on = [null_resource.install_k3s]
 }
 
+# Local Registry Setup (shared hostname)
+resource "null_resource" "install_registry" {
+  provisioner "local-exec" {
+    command = "bash ./install_registry.sh"
+  }
+  depends_on = [null_resource.install_k3s]
+}
+
+
 resource "helm_release" "argocd" {
   name             = "argocd"
   namespace        = "argocd"
