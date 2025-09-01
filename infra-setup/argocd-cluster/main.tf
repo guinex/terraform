@@ -53,8 +53,7 @@ resource "null_resource" "argocd_admin_password" {
   provisioner "local-exec" {
     command = <<EOT
       echo "🔐 Fetching Argo CD admin password..."
-      kubectl get secret argocd-initial-admin-secret -n argocd \
-        -o jsonpath="{.data.password}" | base64 -d > ./argocd-admin-password.txt
+      sudo kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -data.password}" | base64 -d > ./argocd-admin-password.txt
       echo "✅ Argo CD admin password written to ./argocd-admin-password.txt"
 EOT
   }

@@ -19,5 +19,5 @@ EOF
 # Restart K3s
 echo "🔁 Restarting K3s..."
 sudo systemctl restart k3s
-
+echo " Check Registry via: docker ps | grep registry"
 echo "✅ Local registry setup complete."
