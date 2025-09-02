@@ -4,6 +4,10 @@ provider "helm" {
   }
 }
 
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
 # Install K3s
 resource "null_resource" "install_k3s" {
   provisioner "local-exec" {
@@ -19,29 +23,28 @@ resource "null_resource" "set_kubeconfig" {
   depends_on = [null_resource.install_k3s]
 }
 
-# Persistent Volume using NFS
+# Persistent Volume using hostPath (mounted NFS share)
 resource "kubernetes_persistent_volume" "postgres_pv" {
   metadata {
     name = "postgres-nfs-pv"
   }
   spec {
-    capacity {
+    capacity = {
       storage = "10Gi"
     }
     access_modes = ["ReadWriteMany"]
     persistent_volume_reclaim_policy = "Retain" # Keeps data safe during Helm uninstall
     storage_class_name = "postgres-nfs-storage"
     persistent_volume_source {
-      nfs {
-        path   = "/mnt/nfs/postgres-data" # Your NFS mount point
-        server = "YOUR_NFS_SERVER_IP"     # Replace with actual NFS server IP
-        read_only = false
+      host_path {
+        path = "/nfs-postgres" # Path to the mounted NFS share on the K3s node
+        type = "Directory"     # Ensures the path is a directory
       }
     }
   }
 }
 
-# Storage Class for NFS
+# Storage Class for manual provisioning
 resource "kubernetes_storage_class" "postgres_sc" {
   metadata {
     name = "postgres-nfs-storage"
@@ -84,7 +87,6 @@ resource "helm_release" "postgres" {
     value = "31432"
   }
 
-  # Enable persistence for PostgreSQL
   set {
     name  = "primary.persistence.enabled"
     value = "true"
@@ -110,7 +112,7 @@ resource "kubernetes_persistent_volume_claim" "postgres_pvc" {
   spec {
     access_modes = ["ReadWriteMany"]
     resources {
-      requests {
+      requests = {
         storage = "10Gi"
       }
     }

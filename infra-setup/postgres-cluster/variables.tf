@@ -12,5 +12,5 @@ variable "postgres_password" {
 variable "postgres_db" {
   description = "Default Postgres database name"
   type        = string
-  default     = "orderdb"
+  default     = "development"
 }
