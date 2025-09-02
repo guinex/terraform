@@ -4,12 +4,18 @@ provider "helm" {
   }
 }
 
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
+# Install K3s
 resource "null_resource" "install_k3s" {
   provisioner "local-exec" {
     command = "bash ./install_k3s.sh"
   }
 }
 
+# Set Kubeconfig
 resource "null_resource" "set_kubeconfig" {
   provisioner "local-exec" {
     command = "bash ./set_kubeconfig.sh"
@@ -17,7 +23,7 @@ resource "null_resource" "set_kubeconfig" {
   depends_on = [null_resource.install_k3s]
 }
 
-# Persistent Volume using NFS
+# Persistent Volume using hostPath (mounted NFS share)
 resource "kubernetes_persistent_volume" "postgres_pv" {
   metadata {
     name = "postgres-nfs-pv"
@@ -27,23 +33,27 @@ resource "kubernetes_persistent_volume" "postgres_pv" {
       storage = "10Gi"
     }
     access_modes = ["ReadWriteMany"]
-    persistent_volume_reclaim_policy = "Retain" # 🔑 keeps data safe during Helm uninstall
+    persistent_volume_reclaim_policy = "Retain" # Keeps data safe during Helm uninstall
     storage_class_name = "postgres-nfs-storage"
-    nfs {
-      path   = "/mnt/nfs/postgres-data" # ✅ Your NFS mount point
-      server = "YOUR_NFS_SERVER_IP"     # 👈 replace with actual NFS server IP
+    persistent_volume_source {
+      host_path {
+        path = "/nfs-postgres" # Path to the mounted NFS share on the K3s node
+        type = "Directory"     # Ensures the path is a directory
+      }
     }
   }
 }
 
+# Storage Class for manual provisioning
 resource "kubernetes_storage_class" "postgres_sc" {
   metadata {
     name = "postgres-nfs-storage"
   }
-  storage_provisioner    = "kubernetes.io/no-provisioner"
-  volume_binding_mode    = "WaitForFirstConsumer"
+  storage_provisioner = "kubernetes.io/no-provisioner"
+  volume_binding_mode = "WaitForFirstConsumer"
 }
 
+# Helm release for PostgreSQL
 resource "helm_release" "postgres" {
   name             = "postgres"
   namespace        = "database"
@@ -77,7 +87,6 @@ resource "helm_release" "postgres" {
     value = "31432"
   }
 
-  # ✅ This makes Postgres use your NFS folder for persistence
   set {
     name  = "primary.persistence.enabled"
     value = "true"
@@ -94,7 +103,7 @@ resource "helm_release" "postgres" {
   }
 }
 
-# Persistent Volume Claim to bind PV -> Postgres Helm chart
+# Persistent Volume Claim to bind PV to Postgres Helm chart
 resource "kubernetes_persistent_volume_claim" "postgres_pvc" {
   metadata {
     name      = "postgres-pvc"
